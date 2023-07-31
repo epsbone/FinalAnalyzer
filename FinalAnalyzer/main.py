@@ -293,7 +293,7 @@ def check_symbol(sym):
     return sym
 
 
-with open('FinalAnalyzer\code.txt', 'r') as file:
+with open('FinalAnalyzer\source.txt', 'r') as file:
     content = file.read()
 
 word = ''
