@@ -1,0 +1,1 @@
+$ programa id ; variable id : entero ; { leer ( id ) ; si id >= entero entonces { escribir ( cadena ) ; } Sino { escribir ( cadena ) ; } fin_sino ; } . 
