@@ -1,6 +1,6 @@
 import subprocess
 import re
-
+import operations
 import symbol_table
 # Define the transition table
 transition_table = {
@@ -212,17 +212,17 @@ data_types = {
 obj_symbols_table = symbol_table.SymbolTable()
 
 
-
+# Clear content in lexical_result.txt
 with open('lexical.txt', 'w') as f:
     f.write('')
 
 
 def check_word(word):
-    
+    # Initialize the automaton
     current_state = 'q0'
     word_type = None
 
-    
+    # Define the character types and their mappings
     char_types = {
         'letter': str.isalpha,
         'digit': str.isdigit,
@@ -258,21 +258,22 @@ def check_word(word):
         word_type = word
 
     else:
-        
+        # Accumulate characters until no valid transition exists
         for char in word:
             char_type = 'other'
-            
+            # Check the type of character
             for type_name, char_check in char_types.items():
                 if char_check(char):
                     char_type = type_name
                     break
 
+            # Check if there is a transition defined for the current state and input character
             if current_state in transition_table and char_type in transition_table[current_state]:
                 current_state = transition_table[current_state][char_type]
             else:
-                break  
+                break  # No valid transition, stop accumulating
 
-        
+        # Check if the final state is an accepting state
         if current_state in accepting_states:
             word_type = accepting_states[current_state]
 
@@ -282,7 +283,7 @@ def check_word(word):
     return word_type
 
 
-
+# Check symbol to change according to transition table rules -------------------------
 def check_symbol(sym):
     if sym.isalpha():
         sym = 'letter'
@@ -293,18 +294,21 @@ def check_symbol(sym):
     return sym
 
 
-with open('FinalAnalyzer\source.txt', 'r') as file:
+# Read words from file and process characters individually --------------------------
+with open('FinalAnalyzer\code.txt', 'r') as file:
     content = file.read()
 
 word = ''
 current_state = 'q0'
 
 
+# Write in a new file ---------------------------------------------------------------
 def lexer_write(line):
     with open('lexical.txt', 'a') as f:
         f.write(f'{line} ')
 
 
+# Check first and last code symbols -------------------------------------------------
 first_symbol = content[0]
 end_symbol = content[len(content)-1]
 
@@ -317,7 +321,8 @@ def check_last_symbol():
     return end_symbol == '.' or print('Program must end with "." symbol')
 
 
-
+# Function for symbols table actions --------------------------------------------------
+# Find variables and process their declarations
 def process_variable_declarations(content):
     variable_start = content.find('variable')
     while variable_start != -1:
@@ -330,6 +335,7 @@ def process_variable_declarations(content):
             break
 
 
+# Process a single variable declaration
 arreglo_type = ''
 arreglo_types_dict = {}
 arreglo_values_dict = {}
@@ -376,24 +382,68 @@ def process_variable_split(variable_line):
                 print(variable_name, ' invalid data type')
 
 
+# Process variable assignment
 def get_variable_value(assignation_start):
     semicolon_index = content.find(';', assignation_start)
     if semicolon_index != -1:
         value_line = content[assignation_start + 1:semicolon_index]
-        variable_value = value_line.strip()
+        variable_value = value_line.strip().split()
+
+        variable_value = change_id_to_value(variable_value)
+        variable_value = ' '.join(variable_value)
+
+        if operations.is_valid_expression(variable_value):
+            variable_value = operations.evaluate_expression(variable_value)
 
         return variable_value
+
+def change_id_to_value(list_val):
+    for i, var_token in enumerate(list_val):
+        if check_word(var_token) == 'id':
+            if obj_symbols_table.lookup(var_token):
+                var_token_value = obj_symbols_table.get_attribute(
+                    var_token, 'value')
+                var_token_type = obj_symbols_table.get_attribute(
+                    var_token, 'type')
+                if var_token_value == 'None':
+                    print(var_token, ': undefined')
+                    break
+
+                if var_token_type == 'entero' or var_token_type == 'real':
+                    list_val[i] = var_token_value
+                else:
+                    print('Can\'t perform operations with',
+                          var_token, 'type: ', var_token_type)
+            else:
+                print('Error: ', var_token, 'has not been declared')
+
+    return list_val        
 
 
 def get_variable_value_arr(assignation_start):
     semicolon_index = content.find(';', assignation_start)
     if semicolon_index != -1:
         value_line = content[assignation_start + 1:semicolon_index]
-        result = re.findall(r'\d+(?:\.\d+)?', value_line)
-        var_arreglo_index = result[0]
-        var_arreglo_value = result[1]
 
-        return var_arreglo_value, var_arreglo_index
+        # Use regular expression to extract the index and expression
+        match = re.match(r'(\d+)\s*\]\s*=\s*(.*)', value_line)
+
+        if match:
+            var_arreglo_index = match.group(1)
+            var_arreglo_value = match.group(2).strip().split()
+
+            var_arreglo_value = change_id_to_value(var_arreglo_value)
+            var_arreglo_value = ' '.join(var_arreglo_value)
+
+            if operations.is_valid_expression(var_arreglo_value):
+                var_arreglo_value = operations.evaluate_expression(
+                    var_arreglo_value)
+
+        else:
+            var_arreglo_index = ''
+            var_arreglo_value = ''
+
+    return var_arreglo_value, var_arreglo_index
 
 
 def symbols_table_type(identifier_name, identifier_type):
@@ -495,6 +545,7 @@ def update_arreglo_values(identifier_name, add_arreglo_value, arreglo_position):
 
 process_variable_declarations(content)
 
+# Review code ------------------------------------------------------------------------
 word_type = ''
 
 for i, char in enumerate(content):
@@ -538,6 +589,7 @@ for i, char in enumerate(content):
             current_state = 'q0'
 
         if current_state in accepting_states and next_char not in transition_table[current_state]:
+            # Exclude the current character
             word_type = check_word(word.strip())
             if word_type:
 
@@ -560,7 +612,7 @@ for i, char in enumerate(content):
                         print('Cannot insert arreglo values')
 
                 lexer_write(word_type)
-                word = ''  
+                word = ''  # Reset the word to start accumulating the next word
                 current_state = 'q0'
             else:
                 print(f'{word} is invalid')
